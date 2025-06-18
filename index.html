@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Solar System</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: #000000;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+      #info-panel {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 15px;
+        background: rgba(0, 0, 0, 0.6);
+        border-radius: 10px;
+        color: #ffffff;
+        font-family: "Inter", sans-serif;
+        font-size: 14px;
+        max-width: 300px;
+        line-height: 1.5;
+        z-index: 10; /* Ensure it's above the canvas */
+      }
+      #info-panel h1 {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+        border-bottom: 1px solid #555;
+        padding-bottom: 5px;
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="info-panel">
+      <h1>Interactive Solar System</h1>
+      <p>
+        - <b>Pan:</b> Left Mouse Button + Drag<br />
+        - <b>Zoom:</b> Scroll Wheel<br />
+        - <b>Rotate:</b> Right Mouse Button + Drag
+      </p>
+      <p>
+        Note: Orbits are now elliptical. The Dyson Swarm panels *always point
+        their front face towards the Sun* and glow as if collecting energy,
+        while their back sides glow with a blue 'Google' logo. Sizes and
+        distances are stylized.
+      </p>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      // --- Basic Setup ---
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        3000
+      ); // Increased far plane for stars
+      camera.position.set(0, 90, 250);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+
+      // --- Controls ---
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.screenSpacePanning = false;
+      controls.minDistance = 20;
+      controls.maxDistance = 1000;
+
+      // --- Lighting ---
+      // Increased point light intensity for better visibility of objects
+      const pointLight = new THREE.PointLight(0xffffff, 5, 3000); // Increased intensity from 3 to 5
+      scene.add(pointLight);
+
+      // Upped the brightness slightly for better visibility on dark sides
+      const ambientLight = new THREE.AmbientLight(0x404040, 0.8);
+      scene.add(ambientLight);
+
+      // --- Starfield ---
+      function createStarfield() {
+        const starVertices = [];
+        for (let i = 0; i < 15000; i++) {
+          const x = THREE.MathUtils.randFloatSpread(2500);
+          const y = THREE.MathUtils.randFloatSpread(2500);
+          const z = THREE.MathUtils.randFloatSpread(2500);
+          starVertices.push(x, y, z);
+        }
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute(
+          "position",
+          new THREE.Float32BufferAttribute(starVertices, 3)
+        );
+        const starMaterial = new THREE.PointsMaterial({
+          color: 0xffffff,
+          size: 0.7,
+          transparent: true,
+          opacity: 0.8,
+        });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+      }
+      createStarfield();
+
+      // --- Sun ---
+      const sunGeometry = new THREE.SphereGeometry(16, 64, 64);
+      const sunMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffdd88,
+        map: createSunTexture(),
+      });
+      const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+      scene.add(sun);
+
+      const spriteMaterial = new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(generateSprite()),
+        color: 0xffffff,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+      });
+      const sprite = new THREE.Sprite(spriteMaterial);
+      sprite.scale.set(70, 70, 1.0);
+      sun.add(sprite);
+
+      // --- Texture Generation Functions ---
+      function createSunTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 256;
+        canvas.height = 256;
+        const context = canvas.getContext("2d");
+        const gradient = context.createRadialGradient(
+          128,
+          128,
+          20,
+          128,
+          128,
+          128
+        );
+        gradient.addColorStop(0.2, "rgba(255, 220, 150, 1)");
+        gradient.addColorStop(0.6, "rgba(255, 165, 0, 1)");
+        gradient.addColorStop(1.0, "rgba(210, 105, 30, 1)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 256, 256);
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      function generateSprite() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+        const context = canvas.getContext("2d");
+        const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gradient.addColorStop(0, "rgba(255,255,255,1)");
+        gradient.addColorStop(0.2, "rgba(255,255,200,1)");
+        gradient.addColorStop(0.4, "rgba(255,220,0,1)");
+        gradient.addColorStop(1, "rgba(255,255,255,0)");
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 128, 128);
+        return canvas;
+      }
+
+      // Function to create the base texture for the front panel (metallic look)
+      function createSwarmFrontBaseTexture() {
+        const canvas = document.createElement("canvas");
+        const size = 128;
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+
+        context.fillStyle = "#EBEBEB";
+        context.fillRect(0, 0, size, size);
+
+        const metallicGradient = context.createLinearGradient(0, 0, size, size);
+        metallicGradient.addColorStop(0, "rgba(255, 255, 255, 0.1)");
+        metallicGradient.addColorStop(0.5, "rgba(180, 180, 180, 0.1)");
+        metallicGradient.addColorStop(1, "rgba(255, 255, 255, 0.1)");
+        context.fillStyle = metallicGradient;
+        context.fillRect(0, 0, size, size);
+
+        // Add a subtle radial shine for overall metallic feel
+        const shineGradient = context.createRadialGradient(
+          size / 2,
+          size / 2,
+          size * 0.1,
+          size / 2,
+          size / 2,
+          size * 0.5
+        );
+        shineGradient.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+        shineGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+        context.fillStyle = shineGradient;
+        context.fillRect(0, 0, size, size);
+
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      // Function to create the emissive texture for the front panel (glowing lines and logo)
+      function createSwarmFrontEmissiveTexture() {
+        const canvas = document.createElement("canvas");
+        const size = 128;
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+
+        // Black background for the emissive map (only what's drawn will glow)
+        context.fillStyle = "#000000";
+        context.fillRect(0, 0, size, size);
+
+        // Glowing panel lines (horizontal and vertical)
+        context.strokeStyle = "#FFD700"; // Gold/Yellow for energy glow
+        context.lineWidth = 2;
+
+        for (let i = 1; i < 4; i++) {
+          context.beginPath();
+          context.moveTo(0, (size / 4) * i);
+          context.lineTo(size, (size / 4) * i);
+          context.stroke();
+        }
+
+        for (let i = 1; i < 4; i++) {
+          context.beginPath();
+          context.moveTo((size / 4) * i, 0);
+          context.lineTo((size / 4) * i, size);
+          context.stroke();
+        }
+
+        // Glowing central "feature"
+        context.fillStyle = "#FFC107"; // Slightly darker yellow for this feature
+        context.fillRect(size * 0.4, size * 0.4, size * 0.2, size * 0.2);
+
+        // Add glowing "Google" text logo
+        context.fillStyle = "#4285F4"; // Google Blue for the glowing text
+        context.font = "bold " + size * 0.18 + 'px "Inter"'; // Slightly larger font for prominence
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText("Google", size / 2, size * 0.5);
+
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      // Function to create the glowing backside texture with Google logo
+      function createSwarmBackPanelEmissiveTexture() {
+        const canvas = document.createElement("canvas");
+        const size = 128;
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+
+        // Black background for the emissive map - ensures only the drawn text glows
+        context.fillStyle = "#000000";
+        context.fillRect(0, 0, size, size);
+
+        // Add the glowing Google logo text
+        context.fillStyle = "#4285F4"; // Google Blue for the glowing text
+        context.font = "bold " + size * 0.2 + 'px "Inter"';
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText("Google", size / 2, size / 2);
+
+        return new THREE.CanvasTexture(canvas);
+      }
+
+      // --- Dyson Swarm ---
+      const swarmObjects = [];
+      function createDysonSwarm() {
+        const swarmCount = 200; // Reduced count for more space
+        const panelTextureFrontBase = createSwarmFrontBaseTexture(); // Base texture for the front face
+        const panelTextureFrontEmissive = createSwarmFrontEmissiveTexture(); // Emissive texture for the front (glowing lines/logo)
+        const panelTextureBackEmissive = createSwarmBackPanelEmissiveTexture(); // Emissive texture for the back (glowing Google logo)
+
+        // Using BoxGeometry to define clear front and back faces
+        const panelWidth = 3;
+        const panelHeight = 3;
+        const panelThickness = 0.15; // Make it very thin
+        const panelGeometry = new THREE.BoxGeometry(
+          panelWidth,
+          panelHeight,
+          panelThickness
+        );
+
+        // Material for the front face (standard material with base map and emissive map for glow)
+        const materialFront = new THREE.MeshStandardMaterial({
+          map: panelTextureFrontBase,
+          metalness: 0.9,
+          roughness: 0.3,
+          emissive: 0xffffff, // White emissive color to be modulated by emissiveMap
+          emissiveMap: panelTextureFrontEmissive, // The texture with the glowing lines/logo
+          emissiveIntensity: 1.2, // Adjust glow intensity for the front
+        });
+
+        // Material for the back face (basic material with emissive map for glowing logo)
+        const materialBack = new THREE.MeshBasicMaterial({
+          color: 0x000000, // Base color of the back. Black ensures only emissive shows.
+          emissive: 0xffffff, // White emissive color to be modulated by emissiveMap
+          emissiveMap: panelTextureBackEmissive, // The texture with the glowing Google logo
+          emissiveIntensity: 1.5, // Adjust glow intensity for the back
+        });
+
+        // Material for the thin sides of the panel (neutral color)
+        const materialSide = new THREE.MeshStandardMaterial({
+          color: "#808080", // Darker grey for the edges
+          metalness: 0.8,
+          roughness: 0.5,
+        });
+
+        // Order of materials for BoxGeometry: [+X, -X, +Y, -Y, +Z, -Z]
+        // We want +Z to be the front (facing sun) and -Z to be the back (glowing logo)
+        const materials = [
+          materialSide, // 0: +X face
+          materialSide, // 1: -X face
+          materialSide, // 2: +Y face
+          materialSide, // 3: -Y face
+          materialFront, // 4: +Z face (front, faces sun)
+          materialBack, // 5: -Z face (back, glows with logo)
+        ];
+
+        for (let i = 0; i < swarmCount; i++) {
+          const panel = new THREE.Mesh(panelGeometry, materials);
+
+          const angle = Math.random() * Math.PI * 2;
+          // Increased radius range for more space between swarms
+          const radius = THREE.MathUtils.randFloat(30, 45);
+          const y = THREE.MathUtils.randFloat(-5, 5); // Increased Y-axis variation for more depth
+
+          panel.position.set(
+            Math.cos(angle) * radius,
+            y,
+            Math.sin(angle) * radius
+          );
+
+          scene.add(panel);
+          swarmObjects.push({
+            mesh: panel,
+            radius: radius,
+            speed: (Math.random() * 0.03 + 0.02) * (27 / radius), // Orbital speed
+            angle: angle,
+          });
+        }
+      }
+      createDysonSwarm();
+
+      // --- Planets Data ---
+      const planetsData = [
+        {
+          name: "Mercury",
+          size: 1.9,
+          distance: 38,
+          color: 0x8c8c8c,
+          speed: 0.04,
+          eccentricity: 0.2,
+        },
+        {
+          name: "Venus",
+          size: 4.7,
+          distance: 67,
+          color: 0xd8a978,
+          speed: 0.015,
+          eccentricity: 0.006,
+        },
+        {
+          name: "Earth",
+          size: 5,
+          distance: 93,
+          color: 0x4f86f7,
+          speed: 0.01,
+          eccentricity: 0.016,
+        },
+        {
+          name: "Mars",
+          size: 2.7,
+          distance: 141,
+          color: 0xc1440e,
+          speed: 0.008,
+          eccentricity: 0.093,
+        },
+        {
+          name: "Jupiter",
+          size: 12,
+          distance: 250,
+          color: 0xc9a47e,
+          speed: 0.002,
+          eccentricity: 0.048,
+        },
+        {
+          name: "Saturn",
+          size: 10,
+          distance: 350,
+          color: 0xe3dccb,
+          speed: 0.0009,
+          eccentricity: 0.054,
+          ring: { inner: 12, outer: 22 },
+        },
+        {
+          name: "Uranus",
+          size: 7,
+          distance: 450,
+          color: 0xace5ee,
+          speed: 0.0004,
+          eccentricity: 0.047,
+        },
+        {
+          name: "Neptune",
+          size: 6.8,
+          distance: 550,
+          color: 0x3f54ba,
+          speed: 0.0001,
+          eccentricity: 0.008,
+        },
+      ];
+
+      const planetObjects = [];
+
+      // --- Helper function to create planets and elliptical orbits ---
+      function createPlanet(data) {
+        const planet = new THREE.Mesh(
+          new THREE.SphereGeometry(data.size, 32, 32),
+          new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.8 })
+        );
+        scene.add(planet);
+
+        if (data.ring) {
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(data.ring.inner, data.ring.outer, 64),
+            new THREE.MeshBasicMaterial({
+              color: 0xaaaaaa,
+              side: THREE.DoubleSide,
+              transparent: true,
+              opacity: 0.6,
+            })
+          );
+          ring.rotation.x = -0.5 * Math.PI;
+          planet.add(ring);
+        }
+
+        // Create Elliptical Orbit Path
+        const semiMajorAxis = data.distance;
+        const semiMinorAxis =
+          data.distance * Math.sqrt(1 - data.eccentricity ** 2);
+        const curve = new THREE.EllipseCurve(
+          0,
+          0,
+          semiMajorAxis,
+          semiMinorAxis,
+          0,
+          2 * Math.PI,
+          false,
+          0
+        );
+        const points = curve.getPoints(128);
+        const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+        const orbitMaterial = new THREE.LineBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.3,
+        });
+        const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
+        orbit.rotation.x = -0.5 * Math.PI;
+        scene.add(orbit);
+
+        return { mesh: planet, ...data, angle: Math.random() * Math.PI * 2 };
+      }
+
+      planetsData.forEach((data) => planetObjects.push(createPlanet(data)));
+
+      // --- Animation Loop ---
+      function animate() {
+        requestAnimationFrame(animate);
+        const time = Date.now() * 0.0001;
+
+        // Animate Dyson Swarm: orbit and align to sun
+        swarmObjects.forEach((panel) => {
+          panel.angle += panel.speed * 0.1;
+          panel.mesh.position.x = Math.cos(panel.angle) * panel.radius;
+          panel.mesh.position.z = Math.sin(panel.angle) * panel.radius;
+
+          // Make the panels always look at the sun's position with their front face (+Z axis)
+          panel.mesh.lookAt(sun.position);
+        });
+
+        // Animate planets with elliptical orbits
+        planetObjects.forEach((p) => {
+          p.angle += p.speed;
+          const semiMajorAxis = p.distance;
+          const semiMinorAxis = p.distance * Math.sqrt(1 - p.eccentricity ** 2);
+
+          p.mesh.position.x = semiMajorAxis * Math.cos(p.angle);
+          p.mesh.position.z = semiMinorAxis * Math.sin(p.angle);
+          p.mesh.rotation.y += 0.005; // Spin planets on their axis
+        });
+
+        sun.scale.setScalar(1 + Math.sin(time * 5) * 0.01);
+        sun.rotation.y += 0.0005;
+
+        controls.update();
+        renderer.render(scene, camera);
+      }
+
+      // Handle window resize
+      window.addEventListener("resize", () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Start the animation loop
+      animate();
+    </script>
+  </body>
+</html>
